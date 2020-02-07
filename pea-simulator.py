@@ -2,16 +2,19 @@
 """ PEA simulateur """
 
 # Standard library imports
+from datetime import datetime
+from os.path import exists
+import pickle
 import sys
 
 # Third party library imports
-from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from tabulate import tabulate
 
 # Debug
 # from pdb import set_trace as st
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 ## VARS
 START_DATE = '2019/01/01'
@@ -36,24 +39,35 @@ def compute_tax(price):
             return float(BANK_TAX[limit])
     return 0
 
-def get_ref_name(ref):
+def get_ref_data(ref):
     """
-    Fonction retournant le nom d'une référence d'action
+    Fonction retournant les données d'une référence d'action
+    Nom, Secteur, Industrie
     """
-    with open('references/cac40.txt', 'r') as ref_file:
+    cac40_filename = 'references/cac40.txt'
+    if not exists(cac40_filename):
+        print('Fichier manquant: {}'.format(cac40_filename))
+        return 'Unknown', 'Unknown', 'Unknown'
+    with open(cac40_filename, 'r') as ref_file:
         for line in ref_file.readlines():
             if line.split(';')[0] == ref:
-                return line.split(';')[1].split('\n')[0]
-    return 'Unknown'
+                return line.split(';')[1].split('\n')[0], \
+                    line.split(';')[2].split('\n')[0], \
+                    line.split(';')[3].split('\n')[0]
+    return 'Unknown', 'Unknown', 'Unknown'
 
 def get_var(ref, price, context, var):
     """
     Fonction retournant la variance des mois précédants
     """
     dernier_mois = context['date'] + relativedelta(months=var)
-    with open('cotations/Cotations{}{:02d}.txt'.format(
-            dernier_mois.year,
-            dernier_mois.month), 'r') as cotations_file:
+    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
+        dernier_mois.year,
+        dernier_mois.month)
+    if not exists(cotations_filename):
+        print('Fichier manquant: {}'.format(cotations_filename))
+        return 0
+    with open(cotations_filename, 'r') as cotations_file:
         for line in cotations_file.readlines():
             if ref == line.split(';')[0]:
                 return round(float(price) - float(line.split(';')[5]), 2)
@@ -63,59 +77,104 @@ def display_help():
     """
     Fonction affichant l'aide
     """
-    print("[a]chat d'actions")
-    print("[v]ente d'actions")
+    print("[a]chat <ref> <nombre>")
+    print("[v]ente <ref> <nombre>")
+    print("[l]iste [<filtre>]")
     print("[d]ashboard")
     print("[s]uivant: passe au prochain mois")
     print("[c]lôture du PEA")
     print("[e]xit")
+    print("[sauvegarder]")
     print("[*]: affiche l'aide")
 
-def list_shares(context):
+def list_shares(context, filter_str):
     """
     Fonction listant les actions disponibles
     https://www.abcbourse.com/download/historiques.aspx
     """
-    print('Nom  Reference  Prix  |  Variation 1 mois  |  Variation 6 mois  |  Variation 1 an')
-    with open('cotations/Cotations{}{:02d}.txt'.format(
-            context['date'].year,
-            context['date'].month), 'r') as cotations_file:
+    listing = list()
+    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
+        context['date'].year,
+        context['date'].month)
+    if not exists(cotations_filename):
+        print('Fichier manquant: {}'.format(cotations_filename))
+        return None
+    with open(cotations_filename, 'r') as cotations_file:
         for line in cotations_file.readlines():
             ref = line.split(';')[0]
             price = line.split(';')[5]
-            print('{} {} {}€ | {}€ | {}€ | {}€'.format(
-                get_ref_name(ref),
+            name, area, industry = get_ref_data(ref)
+            result = [
+                name,
                 ref,
                 price,
                 get_var(ref, price, context, -1),
                 get_var(ref, price, context, -6),
                 get_var(ref, price, context, -12),
-            ))
+                area,
+                industry,
+            ]
+            if True in [filter_str.lower() in str(value).lower() for value in result]:
+                listing.append(result)
+        print(tabulate(listing, [
+            'Nom',
+            'Reference',
+            'Prix',
+            'Variation 1 mois',
+            'Variation 6 mois',
+            'Variation 1 an',
+            'Secteur',
+            'Industrie']))
 
 def list_my_shares(context):
     """
     Fonction listant les actions détenues
     """
+    listing = list()
     total_balance = context['balance']
-    for action in context['shares']:
-        action_price = action['num'] * get_action_price(action['ref'], context)
-        total_balance += action_price
-        print('[{}] {} {} {} = {}€'.format(
-            action['date'],
-            get_ref_name(action['ref']),
-            action['ref'],
-            action['num'],
-            round(action_price, 2),
-        ))
+    for share in context['shares']:
+        share_price = get_share_price(share['ref'], context)
+        share_value = share['num'] * share_price
+        total_balance += share_value
+        month_passed = int(round((share['date'] - context['date']).days/30, 0))
+        var_1_month = 'N.A'
+        var_6_month = 'N.A'
+        if month_passed <= -1:
+            var_1_month = share['num'] * get_var(share['ref'], share_price, context, -1)
+        if month_passed <= -6:
+            var_6_month = share['num'] * get_var(share['ref'], share_price, context, -6)
+        listing.append([
+            share['date'],
+            get_ref_data(share['ref'])[0],
+            share['ref'],
+            share['num'],
+            round(share_value, 2),
+            var_1_month,
+            var_6_month,
+            share['num'] * get_var(share['ref'], share_price, context, month_passed)
+        ])
+    print(tabulate(listing, [
+        "Date d'achat",
+        'Nom',
+        'Reference',
+        'Nombre',
+        'Valeur actuelle',
+        'Variation 1 mois',
+        'Variation 6 mois',
+        'Plus-value totale']))
     return total_balance
 
-def get_action_price(ref, context):
+def get_share_price(ref, context):
     """
     Fonction retournant le price courant d'une référence d'action
     """
-    with open('cotations/Cotations{}{:02d}.txt'.format(
-            context['date'].year,
-            context['date'].month), 'r') as cotations_file:
+    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
+        context['date'].year,
+        context['date'].month)
+    if not exists(cotations_filename):
+        print('Fichier manquant: {}'.format(cotations_filename))
+        return 0
+    with open(cotations_filename, 'r') as cotations_file:
         for line in cotations_file.readlines():
             if line.split(';')[0] == ref:
                 return float(line.split(';')[5])
@@ -130,30 +189,12 @@ def buy_share(commande, context):
         num = int(commande.split(' ')[2])
     except IndexError:
         print('Erreur saisie')
+        display_help()
         return context
-    price = num * get_action_price(ref, context)
+    price = num * get_share_price(ref, context)
     price += compute_tax(price)
     context['balance'] -= price
     context['shares'].append({'ref': ref, 'date': context['date'], 'num': num})
-    return context
-
-def buy(context):
-    """
-    Fonction d'interface d'achat d'actions
-    """
-    print("[l]iste des actions")
-    print("[a]chat <ref action> <nombre>")
-    print("[r]etour")
-    while True:
-        text = input('[{date}][{balance}€] > [achat] > '.format(
-            date=context['date'],
-            balance=round(context['balance'], 2)))
-        if text.startswith('l'):
-            list_shares(context)
-        elif text.startswith('a'):
-            context = buy_share(text, context)
-        else:
-            break
     return context
 
 def sell_share(commande, context):
@@ -165,56 +206,48 @@ def sell_share(commande, context):
         num = int(commande.split(' ')[2])
     except IndexError:
         print('Erreur saisie')
+        display_help()
         return context
-    price = num * get_action_price(ref, context)
+    price = num * get_share_price(ref, context)
     price -= compute_tax(price)
-    for action in context['shares']:
-        if action['ref'] == ref and action['num'] >= num:
+    for share in context['shares']:
+        if share['ref'] == ref and share['num'] >= num:
             context['balance'] += price
-            action['num'] -= num
-    return context
-
-def sell(context):
-    """
-    Fonction d'interface de vente d'actions
-    """
-    list_my_shares(context)
-    print("[v]ente <ref action> <nombre>")
-    print("[r]etour")
-    while True:
-        text = input('[{date}][{balance}€] > [vente] > '.format(
-            date=context['date'],
-            balance=round(context['balance'], 2)))
-        if text.startswith('v'):
-            context = sell_share(text, context)
-            list_my_shares(context)
-        else:
-            break
+            share['num'] -= num
     return context
 
 def dashboard(context):
     """
     Fonction affichant le dashboard d'actions
     """
-    print('solde: {}€'.format(round(context['balance'], 2)))
-    print('shares')
+    print('Solde: {}€'.format(round(context['balance'], 2)))
+    print('Actions')
+    print('=======')
     total_balance = list_my_shares(context)
-    print('solde total: {}€'.format(round(total_balance, 2)))
+    print('Solde total: {}€'.format(round(total_balance, 2)))
 
 def next_month(context):
     """
     Fonction permettant de passer au mois suivant
     """
-    with open('dividendes/Dividendes{}{:02d}.txt'.format(
-            context['date'].year,
-            context['date'].month), 'r') as dividendes_file:
+    dividendes_filename = 'dividendes/Dividendes{}{:02d}.txt'.format(
+        context['date'].year,
+        context['date'].month)
+    if exists(dividendes_filename):
+        dividendes_file = open(dividendes_filename, 'r')
         for line in dividendes_file.readlines():
             ref = line.split(';')[0]
             dividende = line.split(';')[2]
-            for action in context['shares']:
-                if action['ref'] == ref:
-                    print('{} {}€'.format(get_ref_name(ref), dividende))
-                    context['balance'] += float(dividende) * float(action['num'])
+            for share in context['shares']:
+                if share['ref'] == ref:
+                    amount = float(dividende) * float(share['num'])
+                    percent = 100 * float(dividende) / get_share_price(share['ref'], context)
+                    print('Versement de dividendes de {}: {}€, {}%'.format(
+                        get_ref_data(ref)[0],
+                        amount,
+                        round(percent, 2)))
+                    context['balance'] += amount
+        dividendes_file.close()
 
     context['date'] += relativedelta(months=+1)
     print('nouvelle date: {}'.format(context['date']))
@@ -238,26 +271,60 @@ def closing(context):
         else:
             break
 
+def save(context):
+    """
+    Fonction sauvegardant la partie
+    """
+    filename = input('Comment nommer la sauvegarde ? [save.txt] ')
+    if not filename:
+        filename = 'save.txt'
+    afile = open(filename, 'wb')
+    pickle.dump(context, afile)
+    afile.close()
+    print('Partie sauvegardée !')
+
+def load(filename):
+    """
+    Fonction chargeant la partie
+    """
+    afile = open(filename, 'rb')
+    context = pickle.load(afile)
+    afile.close()
+    print('Partie chargée !')
+    return context
+
 def main():
     """
     Fonction principale
     """
+    if sys.argv and exists(sys.argv[1]):
+        context = load(sys.argv[1])
+    else:
+        context = {
+            'date': datetime.strptime(START_DATE, '%Y/%m/%d'),
+            'balance': START_MONEY,
+            'shares': list()
+        }
     display_help()
-    context = {
-        'date': datetime.strptime(START_DATE, '%Y/%m/%d'),
-        'balance': START_MONEY,
-        'shares': list()
-    }
     while True:
         text = input('[{date}][{balance}€] > '.format(
             date=context['date'],
             balance=round(context['balance'], 2)))
         if text.startswith('a'):
-            context = buy(context)
+            context = buy_share(text, context)
         elif text.startswith('v'):
-            context = sell(context)
+            context = sell_share(text, context)
+        elif text.startswith('l'):
+            filter_str = ''
+            if len(text.split(' ')) > 1:
+                filter_str = text.split(' ')[1]
+            list_shares(context, filter_str)
         elif text.startswith('d'):
             dashboard(context)
+        elif text.startswith('sa'):
+            text = input('Êtes-vous sûr de vouloir sauvegarder ? [y/N] ')
+            if text.lower() == 'y':
+                save(context)
         elif text.startswith('s'):
             context['date'] = next_month(context)
         elif text.startswith('c'):
