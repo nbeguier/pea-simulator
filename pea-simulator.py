@@ -14,7 +14,7 @@ from tabulate import tabulate
 # Debug
 # from pdb import set_trace as st
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 
 ## VARS
 START_DATE = '2019/01/01'
@@ -27,6 +27,7 @@ BANK_TAX = {
     100000: '0.2%',
     150000: '0.2%',
 }
+SOCIAL_CONTRIBUTIONS = 17.2
 
 def compute_tax(price):
     """
@@ -56,7 +57,7 @@ def get_ref_data(ref):
                     line.split(';')[3].split('\n')[0]
     return 'Unknown', 'Unknown', 'Unknown'
 
-def get_var(ref, price, context, var):
+def get_var(ref, price, context, var, var_type='percent'):
     """
     Fonction retournant la variance des mois précédants
     """
@@ -70,7 +71,9 @@ def get_var(ref, price, context, var):
     with open(cotations_filename, 'r') as cotations_file:
         for line in cotations_file.readlines():
             if ref == line.split(';')[0]:
-                return round(float(price) - float(line.split(';')[5]), 2)
+                if var_type == 'euro':
+                    return round(float(price) - float(line.split(';')[5]), 2)
+                return round(100 * (float(price) - float(line.split(';')[5])) / float(price), 2)
     return 0
 
 def display_help():
@@ -78,11 +81,11 @@ def display_help():
     Fonction affichant l'aide
     """
     print("[a]chat <ref> <nombre>")
-    print("[v]ente <ref> <nombre>")
+    print("[v]ente <ref> <nombre> <id>")
     print("[l]iste [<filtre>]")
     print("[d]ashboard")
     print("[s]uivant: passe au prochain mois")
-    print("[c]lôture du PEA")
+    print("[c]lôture <années ancienneté>")
     print("[e]xit")
     print("[sauvegarder]")
     print("[*]: affiche l'aide")
@@ -119,10 +122,10 @@ def list_shares(context, filter_str):
         print(tabulate(listing, [
             'Nom',
             'Reference',
-            'Prix',
-            'Variation 1 mois',
-            'Variation 6 mois',
-            'Variation 1 an',
+            'Prix (€)',
+            'Var 1 mois (%)',
+            'Var 6 mois (%)',
+            'Var 1 an (%)',
             'Secteur',
             'Industrie']))
 
@@ -132,7 +135,7 @@ def list_my_shares(context):
     """
     listing = list()
     total_balance = context['balance']
-    for share in context['shares']:
+    for wallet, share in enumerate(context['shares']):
         share_price = get_share_price(share['ref'], context)
         share_value = share['num'] * share_price
         total_balance += share_value
@@ -140,10 +143,13 @@ def list_my_shares(context):
         var_1_month = 'N.A'
         var_6_month = 'N.A'
         if month_passed <= -1:
-            var_1_month = share['num'] * get_var(share['ref'], share_price, context, -1)
+            var_1_month = share['num'] * get_var(
+                share['ref'], share_price, context, -1, var_type='euro')
         if month_passed <= -6:
-            var_6_month = share['num'] * get_var(share['ref'], share_price, context, -6)
+            var_6_month = share['num'] * get_var(
+                share['ref'], share_price, context, -6, var_type='euro')
         listing.append([
+            wallet,
             share['date'],
             get_ref_data(share['ref'])[0],
             share['ref'],
@@ -151,17 +157,19 @@ def list_my_shares(context):
             round(share_value, 2),
             var_1_month,
             var_6_month,
-            share['num'] * get_var(share['ref'], share_price, context, month_passed)
+            share['num'] * get_var(
+                share['ref'], share_price, context, month_passed, var_type='euro')
         ])
     print(tabulate(listing, [
+        'Id',
         "Date d'achat",
         'Nom',
         'Reference',
         'Nombre',
-        'Valeur actuelle',
-        'Variation 1 mois',
-        'Variation 6 mois',
-        'Plus-value totale']))
+        'Valeur (€)',
+        'Plus-value 1 mois (€)',
+        'Plus-value 6 mois (€)',
+        'Plus-value (€)']))
     return total_balance
 
 def get_share_price(ref, context):
@@ -204,16 +212,17 @@ def sell_share(commande, context):
     try:
         ref = commande.split(' ')[1]
         num = int(commande.split(' ')[2])
+        wallet_id = int(commande.split(' ')[3])
     except IndexError:
         print('Erreur saisie')
         display_help()
         return context
     price = num * get_share_price(ref, context)
     price -= compute_tax(price)
-    for share in context['shares']:
-        if share['ref'] == ref and share['num'] >= num:
-            context['balance'] += price
-            share['num'] -= num
+    share = context['shares'][wallet_id]
+    if share['ref'] == ref and share['num'] >= num:
+        context['balance'] += price
+        share['num'] -= num
     return context
 
 def dashboard(context):
@@ -244,7 +253,7 @@ def next_month(context):
                     percent = 100 * float(dividende) / get_share_price(share['ref'], context)
                     print('Versement de dividendes de {}: {}€, {}%'.format(
                         get_ref_data(ref)[0],
-                        amount,
+                        round(amount, 2),
                         round(percent, 2)))
                     context['balance'] += amount
         dividendes_file.close()
@@ -258,18 +267,23 @@ def closing(context):
     """
     Fonction de clôture du PEA
     """
-    list_my_shares(context)
-    print("[c]loture <années ancienneté>")
-    print("[r]etour")
-    while True:
-        text = input('[{date}][{balance}€] > [cloture] > '.format(
-            date=context['date'],
-            balance=round(context['balance'], 2)))
-        if text.startswith('c'):
-            # TODO
-            list_my_shares(context)
-        else:
-            break
+    for wallet_id, share in enumerate(context['shares']):
+        print('Vente de {} x {}'.format(
+            get_ref_data(share['ref'])[0],
+            share['num']))
+        month_passed = int(round((share['date'] - context['date']).days/30, 0))
+        share_price = get_share_price(share['ref'], context)
+        capital_gain = share['num'] * get_var(share['ref'], share_price, context, month_passed)
+        print('-> Plus-value de {}€'.format(capital_gain))
+        tax = capital_gain * SOCIAL_CONTRIBUTIONS / 100
+        if capital_gain > 0:
+            context['balance'] -= tax
+            print('-> Prélèvement sociaux -{}€'.format(round(tax, 2)))
+        context = sell_share('v {} {} {}'.format(
+            share['ref'], share['num'], wallet_id), context)
+
+    print('Vous avez {}€'.format(round(context['balance'], 2)))
+    sys.exit(0)
 
 def save(context):
     """
@@ -297,7 +311,7 @@ def main():
     """
     Fonction principale
     """
-    if sys.argv and exists(sys.argv[1]):
+    if len(sys.argv) > 1 and exists(sys.argv[1]):
         context = load(sys.argv[1])
     else:
         context = {
