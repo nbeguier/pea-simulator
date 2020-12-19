@@ -18,7 +18,7 @@ VERSION = '1.2.0'
 
 ## VARS
 START_DATE = '2019/01/01'
-START_MONEY = 10000
+START_MONEY = 1000
 BANK_TAX = {
     500: 1.95,
     2000: 3.9,
@@ -28,6 +28,11 @@ BANK_TAX = {
     150000: '0.2%',
 }
 SOCIAL_CONTRIBUTIONS = 17.2
+GLOBAL_TAX = {
+    2: 22.5,
+    5: 19,
+    99: 0,
+}
 
 def compute_tax(price):
     """
@@ -57,12 +62,13 @@ def get_ref_data(ref):
                     line.split(';')[3].split('\n')[0]
     return 'Unknown', 'Unknown', 'Unknown'
 
-def get_var(ref, price, context, var, var_type='percent'):
+def get_var(ref, price, context, market, var, var_type='percent'):
     """
     Fonction retournant la variance des mois précédants
     """
     dernier_mois = context['date'] + relativedelta(months=var)
-    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
+    cotations_filename = 'cotations/{}/Cotations{}{:02d}.txt'.format(
+        market,
         dernier_mois.year,
         dernier_mois.month)
     if not exists(cotations_filename):
@@ -90,13 +96,14 @@ def display_help():
     print("[sauvegarder]")
     print("[*]: affiche l'aide")
 
-def list_shares(context, filter_str):
+def list_shares(context, market, filter_str):
     """
     Fonction listant les actions disponibles
     https://www.abcbourse.com/download/historiques.aspx
     """
     listing = list()
-    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
+    cotations_filename = 'cotations/{}/Cotations{}{:02d}.txt'.format(
+        market,
         context['date'].year,
         context['date'].month)
     if not exists(cotations_filename):
@@ -111,23 +118,24 @@ def list_shares(context, filter_str):
                 name,
                 ref,
                 price,
-                get_var(ref, price, context, -1),
-                get_var(ref, price, context, -6),
-                get_var(ref, price, context, -12),
+                get_var(ref, price, context, market, -1),
+                get_var(ref, price, context, market, -6),
+                get_var(ref, price, context, market, -12),
                 area,
                 industry,
             ]
             if True in [filter_str.lower() in str(value).lower() for value in result]:
                 listing.append(result)
-        print(tabulate(listing, [
-            'Nom',
-            'Reference',
-            'Prix (€)',
-            'Var 1 mois (%)',
-            'Var 6 mois (%)',
-            'Var 1 an (%)',
-            'Secteur',
-            'Industrie']))
+    print(tabulate(listing, [
+        'Nom',
+        'Reference',
+        'Prix (€)',
+        'Var 1 mois (%)',
+        'Var 6 mois (%)',
+        'Var 1 an (%)',
+        'Secteur',
+        'Industrie']))
+    return None
 
 def list_my_shares(context):
     """
@@ -144,10 +152,10 @@ def list_my_shares(context):
         var_6_month = 'N.A'
         if month_passed <= -1:
             var_1_month = share['num'] * get_var(
-                share['ref'], share_price, context, -1, var_type='euro')
+                share['ref'], share_price, context, 'cac40', -1, var_type='euro')
         if month_passed <= -6:
             var_6_month = share['num'] * get_var(
-                share['ref'], share_price, context, -6, var_type='euro')
+                share['ref'], share_price, context, 'cac40', -6, var_type='euro')
         listing.append([
             wallet,
             share['date'],
@@ -158,7 +166,7 @@ def list_my_shares(context):
             var_1_month,
             var_6_month,
             share['num'] * get_var(
-                share['ref'], share_price, context, month_passed, var_type='euro')
+                share['ref'], share_price, context, 'cac40', month_passed, var_type='euro')
         ])
     print(tabulate(listing, [
         'Id',
@@ -176,16 +184,19 @@ def get_share_price(ref, context):
     """
     Fonction retournant le price courant d'une référence d'action
     """
-    cotations_filename = 'cotations/Cotations{}{:02d}.txt'.format(
-        context['date'].year,
-        context['date'].month)
-    if not exists(cotations_filename):
-        print('Fichier manquant: {}'.format(cotations_filename))
-        return 0
-    with open(cotations_filename, 'r') as cotations_file:
-        for line in cotations_file.readlines():
-            if line.split(';')[0] == ref:
-                return float(line.split(';')[5])
+    markets = ['cac40']
+    for market in markets:
+        cotations_filename = 'cotations/{}/Cotations{}{:02d}.txt'.format(
+            market,
+            context['date'].year,
+            context['date'].month)
+        if not exists(cotations_filename):
+            print('Fichier manquant: {}'.format(cotations_filename))
+            continue
+        with open(cotations_filename, 'r') as cotations_file:
+            for line in cotations_file.readlines():
+                if line.split(';')[0] == ref:
+                    return float(line.split(';')[5])
     return 0
 
 def buy_share(commande, context):
@@ -273,7 +284,8 @@ def closing(context):
             share['num']))
         month_passed = int(round((share['date'] - context['date']).days/30, 0))
         share_price = get_share_price(share['ref'], context)
-        capital_gain = share['num'] * get_var(share['ref'], share_price, context, month_passed)
+        capital_gain = share['num'] * get_var(
+            share['ref'], share_price, context, 'cac40', month_passed) # TODO: Put market in meta
         print('-> Plus-value de {}€'.format(capital_gain))
         tax = capital_gain * SOCIAL_CONTRIBUTIONS / 100
         if capital_gain > 0:
@@ -332,7 +344,7 @@ def main():
             filter_str = ''
             if len(text.split(' ')) > 1:
                 filter_str = text.split(' ')[1]
-            list_shares(context, filter_str)
+            list_shares(context, 'cac40', filter_str)
         elif text.startswith('d'):
             dashboard(context)
         elif text.startswith('sa'):

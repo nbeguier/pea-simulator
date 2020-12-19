@@ -1,2 +1,4 @@
 *.pyc
 save.txt
+.DS_Store
+urls.txt
