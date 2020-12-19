@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-""" PEA simulateur """
+"""
+PEA simulateur
+
+Copyright (c) 2020 Nicolas Beguier
+Licensed under the MIT License
+Written by Nicolas BEGUIER (nicolas_beguier@hotmail.com)
+"""
 
 # Standard library imports
 from datetime import datetime
