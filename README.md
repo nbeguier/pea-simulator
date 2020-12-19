@@ -1,6 +1,6 @@
 # PEA Simulator
 
-[![Build Status](https://travis-ci.com/nbeguier/pea-simulator.svg?branch=master)](https://travis-ci.com/nbeguier/pea-simulator) [![Python 3.6|3.8](https://img.shields.io/badge/python-3.6|3.8-green.svg)](https://www.python.org/) [![License](https://img.shields.io/github/license/nbeguier/pea-simulator?color=blue)](https://github.com/nbeguier/pea-simulator/blob/master/LICENSE)
+[![Build Status](https://travis-ci.com/nbeguier/pea-simulator.svg?branch=master)](https://travis-ci.com/nbeguier/pea-simulator) [![Python 3.6|3.9](https://img.shields.io/badge/python-3.6|3.9-green.svg)](https://www.python.org/) [![License](https://img.shields.io/github/license/nbeguier/pea-simulator?color=blue)](https://github.com/nbeguier/pea-simulator/blob/master/LICENSE)
 
 This is not a game, this is a PEA simulator, in french.
 
