@@ -7,7 +7,7 @@ This is not a game, this is a PEA simulator, in french.
 ## Usage
 
 ```
-$ ./pea-simulator.py
+$ ./pea_simulator.py
 [a]chat <ref> <nombre>
 [v]ente <ref> <nombre> <id>
 [l]iste [<filtre>]

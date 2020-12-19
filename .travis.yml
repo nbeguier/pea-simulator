@@ -7,5 +7,6 @@ python:
   - 3.9
 install:
   - pip3 install pylint
+  - pip3 install -r requirements.txt
 script:
-  - pylint pea-simulator.py
+  - pylint -d W0511 -d R0913 pea_simulator.py

@@ -20,7 +20,7 @@ from tabulate import tabulate
 # Debug
 # from pdb import set_trace as st
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 ## VARS
 START_DATE = '2019/01/01'
@@ -325,6 +325,36 @@ def load(filename):
     print('Partie chargée !')
     return context
 
+def shortcut_options(context, text):
+    """
+    Redirection vers les fonctions associées au raccourci
+    """
+    if text.startswith('a'):
+        context = buy_share(text, context)
+    elif text.startswith('v'):
+        context = sell_share(text, context)
+    elif text.startswith('l'):
+        filter_str = ''
+        if len(text.split(' ')) > 1:
+            filter_str = text.split(' ')[1]
+        list_shares(context, 'cac40', filter_str)
+    elif text.startswith('d'):
+        dashboard(context)
+    elif text.startswith('sa'):
+        text = input('Êtes-vous sûr de vouloir sauvegarder ? [y/N] ')
+        if text.lower() == 'y':
+            save(context)
+    elif text.startswith('s'):
+        context['date'] = next_month(context)
+    elif text.startswith('c'):
+        closing(context)
+    elif text.startswith('e'):
+        text = input('Êtes-vous sûr de vouloir quitter ? [y/N] ')
+        if text.lower() == 'y':
+            sys.exit(0)
+    else:
+        display_help()
+
 def main():
     """
     Fonction principale
@@ -342,31 +372,7 @@ def main():
         text = input('[{date}][{balance}€] > '.format(
             date=context['date'],
             balance=round(context['balance'], 2)))
-        if text.startswith('a'):
-            context = buy_share(text, context)
-        elif text.startswith('v'):
-            context = sell_share(text, context)
-        elif text.startswith('l'):
-            filter_str = ''
-            if len(text.split(' ')) > 1:
-                filter_str = text.split(' ')[1]
-            list_shares(context, 'cac40', filter_str)
-        elif text.startswith('d'):
-            dashboard(context)
-        elif text.startswith('sa'):
-            text = input('Êtes-vous sûr de vouloir sauvegarder ? [y/N] ')
-            if text.lower() == 'y':
-                save(context)
-        elif text.startswith('s'):
-            context['date'] = next_month(context)
-        elif text.startswith('c'):
-            closing(context)
-        elif text.startswith('e'):
-            text = input('Êtes-vous sûr de vouloir quitter ? [y/N] ')
-            if text.lower() == 'y':
-                sys.exit(0)
-        else:
-            display_help()
+        shortcut_options(context, text)
     return True
 
 
