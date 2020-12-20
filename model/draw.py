@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PEA simulateur
+PEA simulateur - Draw cotation
 
 Copyright (c) 2020 Nicolas Beguier
 Licensed under the MIT License
@@ -11,16 +11,14 @@ import sys
 
 import matplotlib.pyplot as plt
 
-
 # Debug
 # from pdb import set_trace as st
 
-
 COTATION_DIR = sys.argv[1]
-
 
 def main():
     """
+    Main function
     """
     data = dict()
 
@@ -48,7 +46,6 @@ def main():
     plt.title(f'Finance of {isin}')
     plt.legend()
     plt.show()
-    return
 
 
 if __name__ == '__main__':

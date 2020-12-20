@@ -8,5 +8,8 @@ python:
 install:
   - pip3 install pylint
   - pip3 install -r requirements.txt
+  - pip3 install -r model/requirements.txt
 script:
   - pylint -d R0913 pea_simulator.py
+  - pylint model/draw.py
+  - pylint -d R0912 -d R0914  model/train.py

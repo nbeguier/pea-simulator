@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PEA simulateur
+PEA simulateur - Train model
 
 Copyright (c) 2020 Nicolas Beguier
 Licensed under the MIT License
@@ -10,7 +10,6 @@ from pathlib import Path
 import sys
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
 import numpy
 
 # Debug
@@ -21,6 +20,7 @@ GEN_COTATION_DIR = sys.argv[2]
 
 def main():
     """
+    Main function
     """
     data = dict()
 
@@ -40,60 +40,55 @@ def main():
 
     models = []
     # Generate X, same for all model
-    X = []
+    _x = []
     for isin in data:
         for i, val in enumerate(data[isin][1]):
             if i == 0:
                 continue
-            if len(X) < i:
-                X.append([])
-            X[i-1].append(val - data[isin][1][i-1])
+            if len(_x) < i:
+                _x.append([])
+            _x[i-1].append(val - data[isin][1][i-1])
     for i, month in enumerate(data[isin][0]):
         if i == 0:
             continue
-        X[i-1].append(int(month.split('/')[1]) % 12 + 1)
+        _x[i-1].append(int(month.split('/')[1]) % 12 + 1)
 
     # Generate a specific y for each isin, 1 if >0, 0 if <= 0
     for isin in data:
-        y = []
+        _y = []
         for i, val in enumerate(data[isin][1]):
             if i == 0:
                 continue
-            y.append(int(data[isin][1][i] > data[isin][1][i-1]))
+            _y.append(int(data[isin][1][i] > data[isin][1][i-1]))
         clf = RandomForestClassifier(max_depth=100, random_state=0)
-        clf.fit(X, y)
+        clf.fit(_x, _y)
         models.append(clf)
 
     # Start prediction
-    new_X = [X[0]]
-    month = X[0][-1]
+    new_x = [_x[0]]
+    month = _x[0][-1]
     year = 2018
     for k in range(48):
-        new_X.append([])
+        new_x.append([])
         impact = numpy.random.normal()
         for i, isin in enumerate(data):
-            prediction = models[i].predict_proba([new_X[k]])
+            prediction = models[i].predict_proba([new_x[k]])
             var = (prediction[0][1] - prediction[0][0]) + 0.1 * impact
-            # new_X[k+1].append(val * (1 + 0.01*var))
-            new_X[k+1].append(var)
+            new_x[k+1].append(var)
         month = month % 12 + 1
         if month == 1:
             year += 1
-        new_X[k+1].append(month)
+        new_x[k+1].append(month)
         # Write in new files
         new_path = Path('{}/Cotations{}{:02d}.txt'.format(GEN_COTATION_DIR, year, month))
         with new_path.open('a') as new_file:
             for i, isin in enumerate(data):
-                val = data[isin][1][k] * (1 + 0.01*new_X[k+1][i])
+                val = data[isin][1][k] * (1 + 0.01*new_x[k+1][i])
                 if len(data[isin][1]) <= k + 1:
                     data[isin][1].append(val)
                 else:
                     data[isin][1][k+1] = val
-                new_file.write(f'{isin};;{new_X[k+1][i]};{val};{val};{val};\n')
-
-    return
-
+                new_file.write(f'{isin};;{new_x[k+1][i]};{val};{val};{val};\n')
 
 if __name__ == '__main__':
     main()
-
