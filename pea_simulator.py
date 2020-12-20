@@ -20,7 +20,7 @@ from tabulate import tabulate
 # Debug
 # from pdb import set_trace as st
 
-VERSION = '1.2.1'
+VERSION = '1.3.0'
 
 ## VARS
 START_DATE = '2019/01/01'
@@ -39,6 +39,8 @@ GLOBAL_TAX = {
     5: 19,
     99: 0,
 }
+# MARKET = 'generated'
+MARKET = 'cac40'
 
 def compute_tax(price):
     """
@@ -158,10 +160,10 @@ def list_my_shares(context):
         var_6_month = 'N.A'
         if month_passed <= -1:
             var_1_month = share['num'] * get_var(
-                share['ref'], share_price, context, 'cac40', -1, var_type='euro')
+                share['ref'], share_price, context, MARKET, -1, var_type='euro')
         if month_passed <= -6:
             var_6_month = share['num'] * get_var(
-                share['ref'], share_price, context, 'cac40', -6, var_type='euro')
+                share['ref'], share_price, context, MARKET, -6, var_type='euro')
         listing.append([
             wallet,
             share['date'],
@@ -172,7 +174,7 @@ def list_my_shares(context):
             var_1_month,
             var_6_month,
             share['num'] * get_var(
-                share['ref'], share_price, context, 'cac40', month_passed, var_type='euro')
+                share['ref'], share_price, context, MARKET, month_passed, var_type='euro')
         ])
     print(tabulate(listing, [
         'Id',
@@ -190,7 +192,7 @@ def get_share_price(ref, context):
     """
     Fonction retournant le price courant d'une référence d'action
     """
-    markets = ['cac40']
+    markets = [MARKET]
     for market in markets:
         cotations_filename = 'cotations/{}/Cotations{}{:02d}.txt'.format(
             market,
@@ -291,7 +293,7 @@ def closing(context):
         month_passed = int(round((share['date'] - context['date']).days/30, 0))
         share_price = get_share_price(share['ref'], context)
         capital_gain = share['num'] * get_var(
-            share['ref'], share_price, context, 'cac40', month_passed) # TODO: Put market in meta
+            share['ref'], share_price, context, MARKET, month_passed) # TODO: Put market in meta
         print('-> Plus-value de {}€'.format(capital_gain))
         tax = capital_gain * SOCIAL_CONTRIBUTIONS / 100
         if capital_gain > 0:
@@ -337,7 +339,7 @@ def shortcut_options(context, text):
         filter_str = ''
         if len(text.split(' ')) > 1:
             filter_str = text.split(' ')[1]
-        list_shares(context, 'cac40', filter_str)
+        list_shares(context, MARKET, filter_str)
     elif text.startswith('d'):
         dashboard(context)
     elif text.startswith('sa'):
