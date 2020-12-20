@@ -293,7 +293,7 @@ def closing(context):
         month_passed = int(round((share['date'] - context['date']).days/30, 0))
         share_price = get_share_price(share['ref'], context)
         capital_gain = share['num'] * get_var(
-            share['ref'], share_price, context, MARKET, month_passed) # TODO: Put market in meta
+            share['ref'], share_price, context, MARKET, month_passed)
         print('-> Plus-value de {}€'.format(capital_gain))
         tax = capital_gain * SOCIAL_CONTRIBUTIONS / 100
         if capital_gain > 0:
