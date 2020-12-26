@@ -2,7 +2,7 @@
 """
 PEA simulateur - Draw cotation
 
-Copyright (c) 2020 Nicolas Beguier
+Copyright (c) 2020-2021 Nicolas Beguier
 Licensed under the MIT License
 Written by Nicolas BEGUIER (nicolas_beguier@hotmail.com)
 """
